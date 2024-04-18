@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-
 import {
   Table,
   Pagination,
@@ -7,41 +6,34 @@ import {
   Button,
   Modal,
   Form,
-} from "react-bootstrap"; // Components imported from the react-bootstrap
+} from "react-bootstrap";
+import Swal from "sweetalert2";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-import Swal from "sweetalert2"; //imported swal function from sweetalert
-
-// API for fetch data
 const apiUrl =
-  "https://crudcrud.com/api/a5228dab55254090a35fc87c4737b0a8/members";
+  "https://crudcrud.com/api/e84f92b0f2bb4a67bea7b1d4fd771fbd/members";
 
 const DataTable = () => {
-  const [data, setData] = useState([]); // Stores the array of member data fetched from the API.
-
-  const [currentPage, setCurrentPage] = useState(1); // Stores the current page number for pagination.
-
-  const [itemsPerPage] = useState(5); //Defines the number of items to display per page in the table.
-
+  const [data, setData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState("");
-  //Stores the current search term entered by the user for filtering data.
-
-  const [sortedColumn, setSortedColumn] = useState(null); //Stores the name of the column by which the data is sorted.
-
-  const [sortDirection, setSortDirection] = useState("asc"); //Stores the sorting direction (ascending or descending).
-
+  const [sortedColumn, setSortedColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [editMode, setEditMode] = useState(false);
+  const [editMember, setEditMember] = useState(null);
   const [newMember, setNewMember] = useState({
     name: "",
     email: "",
     age: "",
     city: "",
-  }); //Stores the data of a new member.
-
-  const [showModal, setShowModal] = useState(false); //Controls the visibility of the modal for adding new members.
+  });
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
-  //fetch data from the API.
 
   const fetchData = async () => {
     try {
@@ -56,16 +48,13 @@ const DataTable = () => {
     }
   };
 
-  //Updates the currentPage state when a new page is selected
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  //Updates the searchTerm state when the user enters a search query.
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
     setCurrentPage(1);
   };
 
-  //Updates the sortedColumn and sortDirection states based on the selected column for sorting.
   const handleSort = (columnName) => {
     if (sortedColumn === columnName) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -75,16 +64,14 @@ const DataTable = () => {
     }
   };
 
-  // Sends a POST request to the API to add a new member, clears the form, and fetches updated data.
   const handleAddMember = async () => {
     try {
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-        }, // browser needs to know the type of data
-
-        body: JSON.stringify(newMember), //object to json
+        },
+        body: JSON.stringify(newMember),
       });
       if (!response.ok) {
         throw new Error("Failed to add member");
@@ -92,12 +79,13 @@ const DataTable = () => {
       setShowModal(false);
       setNewMember({ name: "", email: "", age: "", city: "" });
       fetchData();
+      toast.success("Member added successfully");
     } catch (error) {
       console.error("Error adding member:", error);
+      toast.error("Failed to add member");
     }
   };
 
-  //Defines a function to display a confirmation dialog using the sweetalert2 library.
   const Sweetalert = () => {
     return Swal.fire({
       title: "Are you sure?",
@@ -110,7 +98,6 @@ const DataTable = () => {
     });
   };
 
-  //Sends a DELETE request to the API to delete a member, updates the data, and displays a success message.
   const handleDeleteMember = async (id) => {
     try {
       const confirmed = await Sweetalert();
@@ -125,23 +112,52 @@ const DataTable = () => {
         setData(updatedData);
         Swal.fire({
           title: "Deleted!",
-          text: "Your file has been deleted.",
+          text: "Your member data has been deleted.",
           icon: "success",
         });
+        toast.success("Member deleted successfully");
       }
     } catch (error) {
       console.error("Error deleting member:", error);
+      toast.error("Failed to delete member");
     }
   };
 
-  //Filters & show the data array based on the searchTerm.
+  const handleEditMember = (member) => {
+    setEditMode(true);
+    setEditMember(member);
+    setShowModal(true);
+  };
+
+  const handleUpdateMember = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/${editMember._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editMember),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update member");
+      }
+      setShowModal(false);
+      setEditMode(false);
+      setEditMember(null);
+      fetchData();
+      toast.success("Member updated successfully");
+    } catch (error) {
+      console.error("Error updating member:", error);
+      toast.error("Failed to update member");
+    }
+  };
+
   const filteredData = data.filter((item) =>
     Object.values(item).some((value) =>
       value.toString().toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
 
-  //Sorts the filtered data based on the sortedColumn and sortDirection.
   const sortedData = sortedColumn
     ? filteredData.sort((a, b) => {
         const comparison = a[sortedColumn].localeCompare(b[sortedColumn]);
@@ -149,15 +165,18 @@ const DataTable = () => {
       })
     : filteredData;
 
-  const indexOfLastItem = currentPage * itemsPerPage; // calculates the index of the last item on the current page by multiplying the currentPage with the itemsPerPage. 5 item on per page.
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
 
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage; //calculates the index of the first item on the current page by subtracting the itemsPerPage from the indexOfLastItem. show only 5 items on per page.
-
-  const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem); //it creates a new array containing only the items to be displayed on the current page.
+  const handleChangeItemsPerPage = (event) => {
+    setItemsPerPage(Number(event.target.value));
+    setCurrentPage(1);
+  };
 
   return (
     <div>
-      {/* Renders a search input field */}
+      <ToastContainer />
       <FormControl
         type="text"
         placeholder="Search"
@@ -165,16 +184,16 @@ const DataTable = () => {
         onChange={handleSearch}
         style={{ width: "400px", float: "left", margin: "8px" }}
       />
-
-      {/* add a new member button */}
       <Button
         className="btn btn-success"
         style={{ float: "right" }}
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          setEditMode(false);
+          setShowModal(true);
+        }}
       >
         Add New Member
       </Button>
-
       <div style={{ marginTop: "10px" }}>
         <Table striped bordered hover>
           <thead>
@@ -199,43 +218,67 @@ const DataTable = () => {
                     variant="danger"
                     onClick={() => handleDeleteMember(item._id)}
                   >
-                    <i className="bi bi-trash-fill"></i>
+                    <i className="bi bi-trash-fill"></i> Delete
+                  </Button>{" "}
+                  <Button
+                    variant="primary"
+                    onClick={() => handleEditMember(item)}
+                  >
+                    Edit
                   </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </Table>
-
-        <Pagination>
-          {Array.from({
-            length: Math.ceil(filteredData.length / itemsPerPage),
-          }).map((item, index) => (
-            <Pagination.Item
-              key={index}
-              active={index + 1 === currentPage}
-              onClick={() => paginate(index + 1)}
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <Pagination>
+            {Array.from({
+              length: Math.ceil(filteredData.length / itemsPerPage),
+            }).map((_, index) => (
+              <Pagination.Item
+                key={index}
+                active={index + 1 === currentPage}
+                onClick={() => paginate(index + 1)}
+              >
+                {index + 1}
+              </Pagination.Item>
+            ))}
+          </Pagination>
+          <div>
+            <label htmlFor="itemsPerPage" style={{ marginRight: "8px" }}>
+              Show rows:
+            </label>
+            <Form.Select
+              id="itemsPerPage"
+              onChange={handleChangeItemsPerPage}
+              style={{ width: "130px" }}
             >
-              {index + 1}
-            </Pagination.Item>
-          ))}
-        </Pagination>
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+              <option value="50">50 per page</option>
+            </Form.Select>
+          </div>
+        </div>
       </div>
-
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Add New Member</Modal.Title>
+          <Modal.Title>
+            {editMode ? "Edit Member" : "Add New Member"}
+          </Modal.Title>
         </Modal.Header>
-
         <Modal.Body>
           <Form.Group controlId="memberName">
             <Form.Label>Member Name</Form.Label>
             <Form.Control
               type="text"
               placeholder="Enter Member Name"
-              value={newMember.name}
+              value={editMode ? editMember.name : newMember.name}
               onChange={(e) =>
-                setNewMember({ ...newMember, name: e.target.value })
+                setEditMode
+                  ? setEditMember({ ...editMember, name: e.target.value })
+                  : setNewMember({ ...newMember, name: e.target.value })
               }
               required
             />
@@ -243,15 +286,16 @@ const DataTable = () => {
               Please enter a name.
             </Form.Control.Feedback>
           </Form.Group>
-
           <Form.Group controlId="memberEmail">
             <Form.Label>Member Email</Form.Label>
             <Form.Control
               type="email"
               placeholder="Enter Member Email"
-              value={newMember.email}
+              value={editMode ? editMember.email : newMember.email}
               onChange={(e) =>
-                setNewMember({ ...newMember, email: e.target.value })
+                setEditMode
+                  ? setEditMember({ ...editMember, email: e.target.value })
+                  : setNewMember({ ...newMember, email: e.target.value })
               }
               required
             />
@@ -259,46 +303,52 @@ const DataTable = () => {
               Please enter a valid email address.
             </Form.Control.Feedback>
           </Form.Group>
-
           <Form.Group controlId="memberAge">
             <Form.Label>Member Age</Form.Label>
             <Form.Control
               type="number"
               placeholder="Enter Member Age"
-              value={newMember.age}
+              value={editMode ? editMember.age : newMember.age}
               onChange={(e) =>
-                setNewMember({ ...newMember, age: e.target.value })
+                setEditMode
+                  ? setEditMember({ ...editMember, age: e.target.value })
+                  : setNewMember({ ...newMember, age: e.target.value })
               }
-              min="18" // Use min attribute to specify minimum age
+              min="18"
               required
             />
             <Form.Control.Feedback type="invalid">
               Please enter a valid age (minimum 18).
             </Form.Control.Feedback>
           </Form.Group>
-
           <Form.Group controlId="memberCity">
             <Form.Label>Member City</Form.Label>
             <Form.Control
               type="text"
               placeholder="Enter Member City"
-              value={newMember.city}
+              value={editMode ? editMember.city : newMember.city}
               onChange={(e) =>
-                setNewMember({ ...newMember, city: e.target.value })
+                setEditMode
+                  ? setEditMember({ ...editMember, city: e.target.value })
+                  : setNewMember({ ...newMember, city: e.target.value })
               }
               required
             />
-
             <Form.Control.Feedback type="invalid">
               Please enter a city.
             </Form.Control.Feedback>
           </Form.Group>
         </Modal.Body>
-
         <Modal.Footer className="justify-content-center">
-          <Button variant="success" onClick={handleAddMember}>
-            Submit
-          </Button>
+          {editMode ? (
+            <Button variant="primary" onClick={handleUpdateMember}>
+              Update
+            </Button>
+          ) : (
+            <Button variant="success" onClick={handleAddMember}>
+              Submit
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
     </div>
